@@ -1,8 +1,10 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from config import ADMIN
+from config import Config
 from helper.database import db
 import asyncio
+
+ADMIN = Config.ADMIN
 
 @Client.on_message(filters.private & filters.user(ADMIN) & filters.command("panel"))
 async def admin_panel(client, message: Message):
