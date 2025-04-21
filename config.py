@@ -4,18 +4,19 @@ id_pattern = re.compile(r'^.\d+$')
 
 class Config(object):
     # pyro client config
-    API_ID    = os.environ.get("API_ID", "")
-    API_HASH  = os.environ.get("API_HASH", "")
-    BOT_TOKEN = os.environ.get("BOT_TOKEN", "") 
+    API_ID    = os.environ.get("API_ID", "20103040")
+    API_HASH  = os.environ.get("API_HASH", "8c4162dedd5303a8e3fe36257e40d1f6")
+    BOT_TOKEN = os.environ.get("BOT_TOKEN", "7890595590:AAHiev-J7K3aOVyYyuHVmk2PHdX56_HhtMQ
+") 
    
     # database config
-    DB_NAME = os.environ.get("DB_NAME","rename")     
-    DB_URL  = os.environ.get("DB_URL","")
+    DB_NAME = os.environ.get("DB_NAME","cluster0")     
+    DB_URL  = os.environ.get("DB_URL","mongodb+srv://sojib:sojib@cluster0.hfszr0v.mongodb.net/?retryWrites=true&w=majority")
 
     # other configs
     BOT_UPTIME  = time.time()
     START_PIC   = os.environ.get("START_PIC", "https://image.tmdb.org/t/p/original/umyOinNa6vqqnqoVc9QqzyaapUz.jpg'")
-    ADMIN = [int(admin) if id_pattern.search(admin) else admin for admin in os.environ.get('ADMIN', '').split()]
+    ADMIN = [int(admin) if id_pattern.search(admin) else admin for admin in os.environ.get('ADMIN', '7862181538').split()]
 
     # channels logs
     FORCE_SUB   = os.environ.get("FORCE_SUB", "movie_channel8") 
