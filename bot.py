@@ -98,27 +98,7 @@ class Bot(Client):
 
 
 
-#gpt
 
-
-
-import asyncio
-from pyrogram import Client
-from pyrogram.errors import FloodWait
-
-async def main():
-    while True:
-        try:
-            app = Client("mybot")  # অথবা তোর ক্লাস হলে Client() / Bot()
-            await app.start()
-            print("Bot started successfully!")
-            break
-        except FloodWait as e:
-            print(f"FloodWait detected! Sleeping for {e.value} seconds...")
-            await asyncio.sleep(e.value)
-
-if __name__ == "__main__":
-    asyncio.run(main())
 
 
 
