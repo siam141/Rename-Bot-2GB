@@ -156,7 +156,7 @@ async def list_premium_users(bot, query):
     if not users:
         await query.message.edit("কোনো প্রিমিয়াম ইউজার নেই।")
     else:
-        text = "**প্রিমিয়াম ইউজার লিস্ট:**
+        text = "**প্রিমিয়াম ইউজার লিস্ট:**"
 
 " + "
 ".join([f"`{uid}`" for uid in users])
