@@ -1,8 +1,7 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from config import ADMIN, CHANNEL, SUPPORT, LOG_CHANNEL
-from helper.database import db  # আগের jishubotz এর জায়গায় db
-from plugins.start_&_cd import Txt
+from config import ADMIN
+from helper.database import db
 import asyncio
 
 @Client.on_message(filters.private & filters.user(ADMIN) & filters.command("panel"))
@@ -27,15 +26,18 @@ async def admin_panel(client, message: Message):
     )
     await message.reply(text, reply_markup=button)
 
+
 @Client.on_callback_query(filters.user(ADMIN))
 async def admin_callbacks(client, query: CallbackQuery):
     data = query.data
 
     if data == "all_users":
-        users = await db.get_all_users()
+        users_cursor = await db.get_all_users()
         text = "**সকল ইউজার লিস্টঃ**\n\n"
-        for user in users:
-            text += f"`{user['_id']}` | {'Premium' if user.get('is_premium') else 'Free'}\n"
+        async for user in users_cursor:
+            is_premium = await db.is_premium(user['_id'])
+            status = "Premium" if is_premium else "Free"
+            text += f"`{user['_id']}` | {status}\n"
         await query.message.edit(text=text[:4000])
 
     elif data == "broadcast":
@@ -47,14 +49,14 @@ async def admin_callbacks(client, query: CallbackQuery):
                 await query.message.reply("ব্রডকাস্ট বাতিল করা হয়েছে।")
                 return
         except asyncio.TimeoutError:
-            await query.message.reply("টাইম শেষ। আবার চেষ্টা কর।")
+            await query.message.reply("⏰ টাইম শেষ। আবার চেষ্টা কর।")
             return
 
-        users = await db.get_all_users()
+        users_cursor = await db.get_all_users()
         success = 0
         failed = 0
 
-        for user in users:
+        async for user in users_cursor:
             try:
                 await client.send_message(user['_id'], broadcast_msg.text)
                 success += 1
@@ -87,8 +89,8 @@ async def admin_callbacks(client, query: CallbackQuery):
 
     elif data == "status":
         total = await db.total_users_count()
-        premium = await db.premium_users_count()
-        await query.message.edit(f"**স্ট্যাটাস**\n\nমোট ইউজার: `{total}`\nপ্রিমিয়াম: `{premium}`")
+        premium_list = await db.get_all_premium()
+        await query.message.edit(f"**স্ট্যাটাস**\n\nমোট ইউজার: `{total}`\nপ্রিমিয়াম: `{len(premium_list)}`")
 
     elif data == "restart":
         await query.message.edit("♻️ বট রিস্টার্ট হচ্ছে...")
