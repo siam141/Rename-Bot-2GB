@@ -1,6 +1,5 @@
 import os
 import asyncio
-
 import motor.motor_asyncio
 from config import Config
 from .utils import send_log
@@ -13,6 +12,8 @@ class Database:
         self.bannedList = self.jishubotz.bannedList
         self.user_col = self.jishubotz.users
         self.user_data = self.jishubotz.user_data
+        self.premium = self.jishubotz.premium
+        self.config = self.jishubotz.config
 
     def new_user(self, id):
         return {
@@ -110,15 +111,29 @@ class Database:
             return True
         return False
 
+    # Premium-related functions
     async def add_premium(self, user_id: int):
-        await self.user_col.update_one({"_id": user_id}, {"$set": {"premium": True}}, upsert=True)
+        await self.premium.update_one({"_id": user_id}, {"$set": {"_id": user_id}}, upsert=True)
 
     async def remove_premium(self, user_id: int):
-        await self.user_col.update_one({"_id": user_id}, {"$unset": {"premium": ""}})
+        await self.premium.delete_one({"_id": user_id})
 
     async def is_premium(self, user_id: int) -> bool:
-        user = await self.user_col.find_one({"_id": user_id})
-        return user and user.get("premium", False)
+        user = await self.premium.find_one({"_id": user_id})
+        return bool(user)
+
+    async def get_all_premium(self) -> list:
+        cursor = self.premium.find({})
+        return [doc["_id"] async for doc in cursor]
+
+    async def set_premium_status(self, status: bool):
+        await self.config.update_one(
+            {"_id": "premium_status"}, {"$set": {"enabled": status}}, upsert=True
+        )
+
+    async def get_premium_status(self) -> bool:
+        doc = await self.config.find_one({"_id": "premium_status"})
+        return doc.get("enabled", False) if doc else False
 
 # Extra watermark functions
 async def set_watermark(user_id, text):
@@ -144,29 +159,3 @@ async def get_watermark_size(user_id):
 # Instantiate
 jishubotz = Database(Config.DB_URL, Config.DB_NAME)
 db = jishubotz.jishubotz
-
-    async def add_premium(self, user_id: int):
-        await self.jishubotz.premium.update_one(
-            {"_id": user_id}, {"$set": {"_id": user_id}}, upsert=True
-        )
-
-    async def remove_premium(self, user_id: int):
-        await self.jishubotz.premium.delete_one({"_id": user_id})
-
-    async def is_premium(self, user_id: int) -> bool:
-        user = await self.jishubotz.premium.find_one({"_id": user_id})
-        return bool(user)
-
-    async def get_all_premium(self) -> list:
-        cursor = self.jishubotz.premium.find({})
-        return [doc["_id"] async for doc in cursor]
-
-
-    async def set_premium_status(self, status: bool):
-        await self.jishubotz.config.update_one(
-            {"_id": "premium_status"}, {"$set": {"enabled": status}}, upsert=True
-        )
-
-    async def get_premium_status(self) -> bool:
-        doc = await self.jishubotz.config.find_one({"_id": "premium_status"})
-        return doc.get("enabled", False) if doc else False
