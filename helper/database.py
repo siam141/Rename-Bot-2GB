@@ -1,5 +1,3 @@
-import os
-import asyncio
 import motor.motor_asyncio
 from config import Config
 from .utils import send_log
@@ -111,7 +109,6 @@ class Database:
             return True
         return False
 
-    # Premium-related functions
     async def add_premium(self, user_id: int):
         await self.premium.update_one({"_id": user_id}, {"$set": {"_id": user_id}}, upsert=True)
 
@@ -135,7 +132,7 @@ class Database:
         doc = await self.config.find_one({"_id": "premium_status"})
         return doc.get("enabled", False) if doc else False
 
-# Extra watermark functions
+# Watermark utility functions
 async def set_watermark(user_id, text):
     await db.user_data.update_one({"_id": user_id}, {"$set": {"watermark": text}}, upsert=True)
 
@@ -156,6 +153,5 @@ async def get_watermark_size(user_id):
     user = await db.user_data.find_one({"_id": user_id})
     return user.get("font_size", 36)
 
-# Instantiate
-jishubotz = Database(Config.DB_URL, Config.DB_NAME)
-db = jishubotz.jishubotz
+# Instantiate the database
+db = Database(Config.DB_URL, Config.DB_NAME)
