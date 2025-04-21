@@ -123,9 +123,6 @@ class Database:
         cursor = self.premium.find({})
         return [doc["_id"] async for doc in cursor]
 
-    async def premium_users_count(self):  # ✅ Fix Added
-        return await self.premium.count_documents({})
-
     async def set_premium_status(self, status: bool):
         await self.config.update_one(
             {"_id": "premium_status"}, {"$set": {"enabled": status}}, upsert=True
