@@ -1,134 +1,97 @@
-import os, sys, time, asyncio, logging, datetime
-from config import Config
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, Message
-from pyrogram.errors import FloodWait, InputUserDeactivated, UserIsBlocked, PeerIdInvalid
-from helper.database import jishubotz
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from config import ADMIN, CHANNEL, SUPPORT, LOG_CHANNEL
+from helper.database import db  # আগের jishubotz এর জায়গায় db
+from plugins.start_&_cd import Txt
+import asyncio
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+@Client.on_message(filters.private & filters.user(ADMIN) & filters.command("panel"))
+async def admin_panel(client, message: Message):
+    total_users = await db.total_users_count()
+    text = f"**আডমিন কন্ট্রোল প্যানেল**\n\nমোট ইউজারঃ `{total_users}` জন"
+    button = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("সকল ইউজার", callback_data="all_users"),
+                InlineKeyboardButton("ব্রডকাস্ট", callback_data="broadcast")
+            ],
+            [
+                InlineKeyboardButton("প্রিমিয়াম ➕", callback_data="add_premium"),
+                InlineKeyboardButton("প্রিমিয়াম ➖", callback_data="remove_premium")
+            ],
+            [
+                InlineKeyboardButton("স্ট্যাটাস", callback_data="status"),
+                InlineKeyboardButton("রিস্টার্ট", callback_data="restart")
+            ]
+        ]
+    )
+    await message.reply(text, reply_markup=button)
 
-@Client.on_message(filters.command("status") & filters.user(Config.ADMIN))
-async def get_stats(bot, message):
-    total_users = await jishubotz.total_users_count()
-    uptime = time.strftime("%Hh%Mm%Ss", time.gmtime(time.time() - bot.uptime))
-    start_t = time.time()
-    st = await message.reply('**Processing The Details.....**')
-    end_t = time.time()
-    time_taken_s = (end_t - start_t) * 1000
-    await st.edit(text=f"**--Bot Stats--** \n\n**⌚ Bot Uptime:** `{uptime}` \n**🐌 Current Ping:** `{time_taken_s:.3f} ms` \n**👭 Total Users:** `{total_users}`")
+@Client.on_callback_query(filters.user(ADMIN))
+async def admin_callbacks(client, query: CallbackQuery):
+    data = query.data
 
-@Client.on_message(filters.command("restart") & filters.user(Config.ADMIN))
-async def restart_bot(bot, message):
-    msg = await bot.send_message(text="🔄 Processes Stopped. Bot Is Restarting...", chat_id=message.chat.id)
-    await asyncio.sleep(3)
-    await msg.edit("✅️ Bot Is Restarted. Now You Can Use Me")
-    os.execl(sys.executable, sys.executable, *sys.argv)
+    if data == "all_users":
+        users = await db.get_all_users()
+        text = "**সকল ইউজার লিস্টঃ**\n\n"
+        for user in users:
+            text += f"`{user['_id']}` | {'Premium' if user.get('is_premium') else 'Free'}\n"
+        await query.message.edit(text=text[:4000])
 
-@Client.on_message(filters.private & filters.command("ping"))
-async def ping(_, message):
-    start_t = time.time()
-    rm = await message.reply_text("Pinging....")
-    end_t = time.time()
-    time_taken_s = (end_t - start_t) * 1000
-    await rm.edit(f"Ping 🔥!\n{time_taken_s:.3f} ms")
-    return time_taken_s
+    elif data == "broadcast":
+        await query.message.edit("**যা লিখবি তা এখন পাঠা (Cancel করতে /cancel)**")
 
-@Client.on_message(filters.command("broadcast") & filters.user(Config.ADMIN) & filters.reply)
-async def broadcast_handler(bot: Client, m: Message):
-    try:
-        await bot.send_message(Config.LOG_CHANNEL, f"{m.from_user.mention} or {m.from_user.id} started a broadcast.")
-    except Exception as e:
-        print("Log channel error:", e)
+        try:
+            broadcast_msg = await client.listen(query.from_user.id, timeout=300)
+            if broadcast_msg.text and broadcast_msg.text.lower() == "/cancel":
+                await query.message.reply("ব্রডকাস্ট বাতিল করা হয়েছে।")
+                return
+        except asyncio.TimeoutError:
+            await query.message.reply("টাইম শেষ। আবার চেষ্টা কর।")
+            return
 
-    all_users = await jishubotz.get_all_users()
-    broadcast_msg = m.reply_to_message
-    sts_msg = await m.reply_text("Broadcast Started..!")
+        users = await db.get_all_users()
+        success = 0
+        failed = 0
 
-    done = 0
-    failed = 0
-    success = 0
-    start_time = time.time()
-    total_users = await jishubotz.total_users_count()
-
-    async for user in all_users:
-        sts = await send_msg(user['_id'], broadcast_msg)
-        if sts == 200:
-            success += 1
-        else:
-            failed += 1
-        if sts == 400:
-            await jishubotz.delete_user(user['_id'])
-        done += 1
-        if done % 20 == 0:
+        for user in users:
             try:
-                await sts_msg.edit(f"**Broadcast In Progress:** \n\nTotal Users: {total_users} \nCompleted: {done}/{total_users}\nSuccess: {success}\nFailed: {failed}")
-            except Exception as e:
-                logger.warning(f"Edit failed: {e}")
+                await client.send_message(user['_id'], broadcast_msg.text)
+                success += 1
+                await asyncio.sleep(0.1)
+            except:
+                failed += 1
+                await db.delete_user(user['_id'])
 
-    completed_in = datetime.timedelta(seconds=int(time.time() - start_time))
-    await sts_msg.edit(f"**Broadcast Completed:** \n\nCompleted In `{completed_in}`.\n\nTotal Users: {total_users}\nCompleted: {done}/{total_users}\nSuccess: {success}\nFailed: {failed}")
+        await query.message.reply(f"✅ পাঠানো হয়েছে: {success}\n❌ ফেল করেছে: {failed}")
 
-async def send_msg(user_id, message):
-    try:
-        await message.copy(chat_id=int(user_id))
-        return 200
-    except FloodWait as e:
-        await asyncio.sleep(e.value)
-        return await send_msg(user_id, message)
-    except InputUserDeactivated:
-        logger.info(f"{user_id} : Deactivated")
-        return 400
-    except UserIsBlocked:
-        logger.info(f"{user_id} : Blocked The Bot")
-        return 400
-    except PeerIdInvalid:
-        logger.info(f"{user_id} : User ID Invalid")
-        return 400
-    except Exception as e:
-        logger.error(f"{user_id} : {e}")
-        return 500
+    elif data == "add_premium":
+        await query.message.edit("প্রিমিয়াম ইউজার আইডি পাঠাও:")
+        try:
+            msg = await client.listen(query.from_user.id, timeout=60)
+            user_id = int(msg.text)
+            await db.add_premium(user_id)
+            await query.message.reply(f"`{user_id}` এখন প্রিমিয়াম ইউজার।")
+        except:
+            await query.message.reply("ভুল হয়েছে। আবার চেষ্টা কর।")
 
+    elif data == "remove_premium":
+        await query.message.edit("যেই আইডি প্রিমিয়াম থেকে বাদ দিবে পাঠাও:")
+        try:
+            msg = await client.listen(query.from_user.id, timeout=60)
+            user_id = int(msg.text)
+            await db.remove_premium(user_id)
+            await query.message.reply(f"`{user_id}` এখন আর প্রিমিয়াম না।")
+        except:
+            await query.message.reply("ভুল হয়েছে। আবার চেষ্টা কর।")
 
+    elif data == "status":
+        total = await db.total_users_count()
+        premium = await db.premium_users_count()
+        await query.message.edit(f"**স্ট্যাটাস**\n\nমোট ইউজার: `{total}`\nপ্রিমিয়াম: `{premium}`")
 
-#gpt
-
-
-
-from pyrogram import Client, filters
-from pyrogram.types import Message
-from helper.database import jishubotz
-
-ADMINS = [7862181538]  # তোমার Telegram ID
-
-@Client.on_message(filters.command("addpremium") & filters.user(ADMINS))
-async def cmd_add_premium(_, m: Message):
-    if len(m.command) < 2:
-        return await m.reply("Usage: /addpremium user_id")
-    user_id = int(m.command[1])
-    await jishubotz.add_premium(user_id)
-    await m.reply(f"✅ User {user_id} added as Premium.")
-
-@Client.on_message(filters.command("delpremium") & filters.user(ADMINS))
-async def cmd_del_premium(_, m: Message):
-    if len(m.command) < 2:
-        return await m.reply("Usage: /delpremium user_id")
-    user_id = int(m.command[1])
-    await jishubotz.remove_premium(user_id)
-    await m.reply(f"❌ User {user_id} removed from Premium.")
-
-@Client.on_message(filters.command("ispremium"))
-async def check_premium(_, m: Message):
-    is_prem = await jishubotz.is_premium(m.from_user.id)
-    if is_prem:
-        await m.reply("✅ You are a Premium user.")
-    else:
-        await m.reply("❌ You are not a Premium user.")
-
-
-
-
-
-# Ban command remains unchanged
-# Unban command remains unchanged
-# You can include them again if needed
+    elif data == "restart":
+        await query.message.edit("♻️ বট রিস্টার্ট হচ্ছে...")
+        await asyncio.sleep(2)
+        import os, sys
+        os.execl(sys.executable, sys.executable, *sys.argv)
